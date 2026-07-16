@@ -84,6 +84,59 @@ def agree_clin(y_true, y_pred, *, clinician=None, **_):
     return float(np.mean(np.asarray(clinician) == np.asarray(y_pred)))
 
 
+def run_outcome_eval(model_factory, df, cfg):
+    """Logically-strong evaluation for the outcome-T model. Two honest tests, both on
+    patients held out entirely (GroupKFold by subject -- no leakage).
+
+    TEST 1 -- Outcome-T prediction accuracy (the model's core skill).
+      Predict outcome_T for held-out (state, new_dose) rows and compare to the OBSERVED
+      outcome_T. Fully honest: we score against a value that was actually measured.
+      Metrics: RMSE, MAE, R^2, and % within +/-100 ng/dL.
+
+    TEST 2 -- Inverse recommendation accuracy (does the recommender back out reality?).
+      For each held-out row we KNOW the patient took dose `new_dose` and reached
+      `outcome_T`. Set desired_T := that achieved outcome_T and ask the recommender which
+      dose to give. If it returns the dose actually taken (exact) or within one ladder
+      step, it is correct -- because that dose is, by observation, the one that produced
+      that T for this patient. No counterfactual is assumed, so the test is honest.
+      Baseline for context: 'keep the current dose'.
+    """
+    group_col = cfg.get("group_key", "subject_id")
+    groups = df[group_col] if group_col in df.columns else df["subject_id"]
+    gkf = GroupKFold(n_splits=cfg.get("n_splits", 5))
+    y = df["outcome_T"]
+    idx = {d: i for i, d in enumerate(LADDER)}
+    rows = []
+    for k, (tr, te) in enumerate(gkf.split(df, y, groups)):
+        model = model_factory().fit(df.iloc[tr], y.iloc[tr])
+        te_df = df.iloc[te]
+        yt = te_df["outcome_T"].values
+        pred = model.predict(te_df)
+
+        ss_res = float(np.sum((yt - pred) ** 2))
+        ss_tot = float(np.sum((yt - yt.mean()) ** 2))
+
+        rec = model.recommend(te_df, yt)                 # desired_T = achieved T
+        taken = te_df["new_dose"].values
+        w1 = np.mean([(a in idx and b in idx and abs(idx[a] - idx[b]) <= 1)
+                      for a, b in zip(rec, taken)])
+        keep = te_df["current_dose"].values              # naive baseline
+
+        rows.append({
+            "fold": k,
+            "outcomeT_rmse": float(np.sqrt(np.mean((yt - pred) ** 2))),
+            "outcomeT_mae": float(np.mean(np.abs(yt - pred))),
+            "outcomeT_r2": float(1 - ss_res / ss_tot) if ss_tot else 0.0,
+            "outcomeT_within_100ngdl": float(np.mean(np.abs(yt - pred) <= 100)),
+            "inverse_exact_dose": float(np.mean(rec == taken)),
+            "inverse_within_one_step": float(w1),
+            "baseline_keepdose_exact": float(np.mean(keep == taken)),
+        })
+    folds = pd.DataFrame(rows)
+    summary = folds.drop(columns=["fold"]).agg(["mean", "std"]).T
+    return folds, summary
+
+
 def run_cv(model_factory, df, features, train_target, eval_target, metrics, cfg):
     """Patient-level GroupKFold. Returns per-fold and mean+-std metric tables.
 

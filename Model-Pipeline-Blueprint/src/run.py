@@ -25,11 +25,34 @@ def main(config_path: str):
     dcfg.setdefault("seed", cfg.get("experiment", {}).get("seed", 42))
     df = data_mod.build_abt(dcfg)
     if "group_key" not in df:
-        df["group_key"] = df["patient_id"]
-    features = dcfg["features"] + dcfg.get("extended_features", [])
-    eval_target = dcfg["target"]                    # a dose column, e.g. next_dose_rubric
+        df["group_key"] = df["subject_id"] if "subject_id" in df else df["patient_id"]
     name = cfg["model"]["name"]
     kind = models_mod.MODEL_KIND.get(name, "dose")
+    exp_name = cfg.get("experiment", {}).get("name", "run")
+    out = Path(cfg.get("experiment", {}).get("results_dir", "results"))
+    out.mkdir(parents=True, exist_ok=True)
+
+    # ---- OUTCOME-T MODEL: dedicated two-test evaluation --------------------------
+    if kind == "outcome_t":
+        print(f"ABT: {len(df)} rows, {df['subject_id'].nunique()} subjects | "
+              f"model=outcome_t | predict outcome_T from "
+              f"[age, bmi, current_T, current_dose, new_dose]")
+        model_factory = lambda: models_mod.build_model(cfg["model"])
+        folds, summary = eval_mod.run_outcome_eval(model_factory, df, cfg["evaluation"]["cv"])
+        folds.to_csv(out / f"{exp_name}_folds.csv", index=False)
+        summary.to_csv(out / f"{exp_name}_summary.csv")
+        (out / f"{exp_name}_summary.json").write_text(
+            json.dumps(summary["mean"].round(4).to_dict(), indent=2))
+        print("\n=== Outcome-T evaluation (mean +/- std over patient-grouped folds) ===")
+        print("  TEST 1  outcome-T prediction:  rmse / mae / r2 / within_100ngdl")
+        print("  TEST 2  inverse recommendation: exact / within_one_step (vs keep-dose baseline)")
+        with pd.option_context("display.float_format", lambda v: f"{v:.4f}"):
+            print(summary)
+        print(f"\nSaved -> {out}/{exp_name}_*.csv/json")
+        return summary
+
+    features = dcfg["features"] + dcfg.get("extended_features", [])
+    eval_target = dcfg["target"]                    # a dose column, e.g. next_dose_rubric
 
     # Choose train target + metric family from the model kind.
     dose_metrics = {"exact_dose_accuracy", "within_one_step_accuracy", "dose_mae_steps",

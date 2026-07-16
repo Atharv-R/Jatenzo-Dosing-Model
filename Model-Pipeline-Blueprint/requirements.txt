@@ -3,3 +3,5 @@ pandas>=2.0
 scikit-learn>=1.3
 pyyaml>=6.0
 openpyxl>=3.1
+lightgbm>=4.0      # optional engine for outcome_t (model.engine: lightgbm)
+catboost>=1.2      # optional engine for outcome_t (model.engine: catboost)

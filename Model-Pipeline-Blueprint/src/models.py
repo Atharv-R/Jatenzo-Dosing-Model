@@ -22,6 +22,7 @@ MODEL_KIND = {
     "rubric": "dose", "always_237": "dose", "existing_linear_calculator": "dose",
     "ordinal_logistic": "dose", "random_forest": "dose", "gbm_monotone": "dose",
     "serumT_then_rule": "dose_via_serum",
+    "outcome_t": "outcome_t",
 }
 
 _REGISTRY: dict[str, type] = {}
@@ -114,6 +115,87 @@ class GBMMonotone:
 
 
 # ------------------------------------------------------------------------ serum-T (A)
+def make_outcome_regressor(engine: str, hp: dict, features: list[str]):
+    """Build the gradient-boosting regressor behind the outcome-T model.
+
+    All three engines are histogram-based gradient-boosted trees with the same sklearn-
+    style fit/predict API, so the OutcomeTModel logic is identical regardless of engine.
+    Optional monotone_constraints: {feature: -1|0|1}, e.g. {new_dose: 1, current_T: 1}.
+    """
+    engine = (engine or "histgbm").lower()
+    mono = hp.get("monotone_constraints", {})
+    n = hp.get("n_estimators", 400)
+    lr = hp.get("learning_rate", 0.05)
+    depth = hp.get("max_depth", 3)
+    l2 = hp.get("l2_regularization", 1.0)
+
+    if engine in ("lightgbm", "lgbm"):
+        from lightgbm import LGBMRegressor
+        kw = dict(n_estimators=n, learning_rate=lr, max_depth=depth,
+                  num_leaves=hp.get("num_leaves", 15),
+                  min_child_samples=hp.get("min_child_samples", 20),
+                  reg_lambda=l2, random_state=0, verbosity=-1)
+        if mono:
+            kw["monotone_constraints"] = [mono.get(f, 0) for f in features]
+        return LGBMRegressor(**kw)
+
+    if engine in ("catboost", "cat"):
+        from catboost import CatBoostRegressor
+        kw = dict(iterations=n, learning_rate=lr, depth=depth,
+                  l2_leaf_reg=hp.get("l2_leaf_reg", 3.0),
+                  random_seed=0, verbose=False, allow_writing_files=False)
+        if mono:
+            kw["monotone_constraints"] = [mono.get(f, 0) for f in features]
+        return CatBoostRegressor(**kw)
+
+    # default: scikit-learn HistGradientBoosting (no extra install)
+    kw = dict(learning_rate=lr, max_iter=n, max_depth=depth,
+              l2_regularization=l2, random_state=0)
+    if mono:
+        kw["monotonic_cst"] = [mono.get(f, 0) for f in features]
+    return HistGradientBoostingRegressor(**kw)
+
+
+@register("outcome_t")
+class OutcomeTModel:
+    """Predict FINAL (outcome) T from the patient's state + the candidate dose, then
+    recommend the dose whose predicted outcome T is closest to the desired T.
+
+    This is the colleague's design:
+      features = [age, bmi, current_T, current_dose, new_dose]  ->  target = outcome_T
+    Recommendation sweeps all five ladder doses and picks the closest-to-desired outcome.
+
+    Engine is swappable via config `model.engine`: histgbm (default) | lightgbm | catboost.
+    """
+    FEATURES = ["age", "bmi", "current_T", "current_dose", "new_dose"]
+
+    def __init__(self, cfg):
+        hp = cfg.get("hyperparameters", {})
+        self.engine = cfg.get("engine", "histgbm")
+        # Small tabular data -> many shallow trees + low learning rate generalize best.
+        self.m = make_outcome_regressor(self.engine, hp, self.FEATURES)
+
+    def fit(self, X, y):
+        self.m.fit(X[self.FEATURES].values, y)          # y = outcome_T (ng/dL)
+        return self
+
+    def predict(self, X):
+        """Predicted outcome T for the given (state, new_dose) rows."""
+        return self.m.predict(X[self.FEATURES].values)
+
+    def recommend(self, X, desired_T):
+        """For each patient row, sweep the 5 doses and return the one whose predicted
+        outcome T is closest to desired_T. Vectorized over rows."""
+        desired = np.asarray(desired_T, dtype=float).reshape(-1, 1)
+        base = X[self.FEATURES].copy()
+        preds = np.zeros((len(X), len(LADDER)))
+        for j, d in enumerate(LADDER):
+            b = base.copy(); b["new_dose"] = d
+            preds[:, j] = self.m.predict(b.values)
+        best = np.argmin(np.abs(preds - desired), axis=1)
+        return np.array([LADDER[i] for i in best])
+
+
 @register("serumT_then_rule")
 class SerumTThenRule:
     """Method A. Regress 6h serum T from (dose, covariates); to recommend, predict serum
