@@ -1,0 +1,7 @@
+{
+  "exact_dose_accuracy": 0.0622,
+  "within_one_step_accuracy": 0.2278,
+  "quadratic_weighted_kappa": -0.0011,
+  "agreement_with_rubric": 0.0622,
+  "agreement_with_clinician": 0.0722
+}

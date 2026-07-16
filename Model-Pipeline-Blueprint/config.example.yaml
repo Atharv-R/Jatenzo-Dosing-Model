@@ -1,0 +1,79 @@
+# One experiment = one config file. Change a block, rerun `python src/run.py --config this.yaml`.
+# Nothing in the code changes when you swap data / model / metrics — only this file.
+
+experiment:
+  name: "baseline_ordinal_gbm_v1"
+  seed: 42
+  results_dir: "results/"
+
+# ---------------------------------------------------------------------------
+# DATA layer  -> produces the Analytics Base Table (ABT). Swap = edit this block.
+# ---------------------------------------------------------------------------
+data:
+  raw_sources:
+    - "../240624-1019-clar-09007-csr-Transformed Values-KCVBAV.xlsx"
+    - "../260414-1535-Jatenzo 15012-Transform-Value only-WHTZ.xlsx"
+  row_granularity: "patient_visit"      # one row per (patient x titration decision)
+  group_key: "patient_id"               # used for leakage-safe CV
+
+  features:                             # the committed 5-variable baseline
+    - current_T
+    - current_dose
+    - target_T                          # a.k.a. "desired" (confirm meaning)
+    - bmi
+    - age
+  extended_features: []                 # e.g. [shbg, dietary_fat, baseline_T] to switch direction
+
+  target: "serum_T_6h"                  # T1 primary. options: serum_T_6h | next_dose_rubric | next_dose_clinician
+
+  outliers:
+    policy: "winsorize"                 # none | winsorize | drop | drop_data_errors_only
+    lower_pct: 2
+    upper_pct: 98
+    apply_to: [bmi, current_T, serum_T_6h]
+    keep_in_test: true                  # never hide safety cases from evaluation
+
+# ---------------------------------------------------------------------------
+# MODEL registry  -> pick one by name; set its hyperparameters. Swap = edit this block.
+# ---------------------------------------------------------------------------
+model:
+  name: "gbm_monotone"                  # linear | ordinal_logistic | random_forest | gbm_monotone | rubric_baseline | serumT_then_rule
+  task: "ordinal"                       # regression | classification | ordinal
+  hyperparameters:
+    n_estimators: 400
+    learning_rate: 0.05
+    max_depth: 4
+    monotone_constraints: {current_T: -1}   # higher serum T -> never higher dose
+  ladder: [158, 198, 237, 316, 396]
+  max_step_per_visit: 1                 # mirror the label's one-step titration
+
+# ---------------------------------------------------------------------------
+# EVALUATION  -> metrics + CV. Swap = edit this block.
+# ---------------------------------------------------------------------------
+evaluation:
+  cv:
+    scheme: "group_kfold"               # MUST group by patient_id
+    n_splits: 5
+  metrics:
+    - rmse                              # for continuous serum-T target
+    - pct_in_band                       # % predictions landing 425-970
+    - exact_dose_accuracy               # for dose targets
+    - within_one_step_accuracy
+    - quadratic_weighted_kappa
+    - overshoot_rate                    # recs implying serum T > 970
+    - undershoot_rate                   # recs implying serum T < 425
+    - agreement_with_rubric
+    - agreement_with_clinician
+  baselines:
+    - rubric
+    - existing_linear_calculator
+    - always_237
+
+# ---------------------------------------------------------------------------
+# GUARDRAILS  -> deterministic safety layer wrapping the model (Part 6).
+# ---------------------------------------------------------------------------
+guardrails:
+  clamp_to_ladder: true
+  enforce_discontinue_at_floor: true
+  ood_defer_to_rubric: true
+  low_confidence_action: "remeasure_7d"   # when predictive interval crosses a band edge

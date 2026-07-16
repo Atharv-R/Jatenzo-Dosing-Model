@@ -1,0 +1,67 @@
+experiment:
+  name: baseline_ordinal_gbm_v1
+  seed: 42
+  results_dir: results/
+data:
+  raw_sources:
+  - ../240624-1019-clar-09007-csr-Transformed Values-KCVBAV.xlsx
+  - ../260414-1535-Jatenzo 15012-Transform-Value only-WHTZ.xlsx
+  row_granularity: patient_visit
+  group_key: patient_id
+  features:
+  - current_T
+  - current_dose
+  - target_T
+  - bmi
+  - age
+  extended_features: []
+  target: serum_T_6h
+  outliers:
+    policy: winsorize
+    lower_pct: 2
+    upper_pct: 98
+    apply_to:
+    - bmi
+    - current_T
+    - serum_T_6h
+    keep_in_test: true
+  source: synthetic
+model:
+  name: gbm_monotone
+  task: ordinal
+  hyperparameters:
+    n_estimators: 400
+    learning_rate: 0.05
+    max_depth: 4
+    monotone_constraints:
+      current_T: -1
+  ladder:
+  - 158
+  - 198
+  - 237
+  - 316
+  - 396
+  max_step_per_visit: 1
+evaluation:
+  cv:
+    scheme: group_kfold
+    n_splits: 5
+  metrics:
+  - rmse
+  - pct_in_band
+  - exact_dose_accuracy
+  - within_one_step_accuracy
+  - quadratic_weighted_kappa
+  - overshoot_rate
+  - undershoot_rate
+  - agreement_with_rubric
+  - agreement_with_clinician
+  baselines:
+  - rubric
+  - existing_linear_calculator
+  - always_237
+guardrails:
+  clamp_to_ladder: true
+  enforce_discontinue_at_floor: true
+  ood_defer_to_rubric: true
+  low_confidence_action: remeasure_7d
