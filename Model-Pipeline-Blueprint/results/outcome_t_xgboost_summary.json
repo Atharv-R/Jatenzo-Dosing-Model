@@ -1,0 +1,9 @@
+{
+  "outcomeT_rmse": 140.9004,
+  "outcomeT_mae": 111.4802,
+  "outcomeT_r2": 0.6229,
+  "outcomeT_within_100ngdl": 0.53,
+  "inverse_exact_dose": 0.4442,
+  "inverse_within_one_step": 0.845,
+  "baseline_keepdose_exact": 0.1483
+}

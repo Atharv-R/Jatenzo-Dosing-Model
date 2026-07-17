@@ -5,3 +5,5 @@ pyyaml>=6.0
 openpyxl>=3.1
 lightgbm>=4.0      # optional engine for outcome_t (model.engine: lightgbm)
 catboost>=1.2      # optional engine for outcome_t (model.engine: catboost)
+xgboost>=2.0       # optional engine for outcome_t (model.engine: xgboost)
+matplotlib>=3.7    # notebooks (charts)

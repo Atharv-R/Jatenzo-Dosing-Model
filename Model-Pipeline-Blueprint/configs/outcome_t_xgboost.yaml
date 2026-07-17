@@ -1,0 +1,40 @@
+data:
+  abt_path: data/abt.csv
+  features:
+  - age
+  - bmi
+  - current_T
+  - current_dose
+  - new_dose
+  outliers:
+    apply_to:
+    - bmi
+    - current_T
+    - outcome_T
+    lower_pct: 2
+    policy: winsorize
+    upper_pct: 98
+  source: synthetic
+evaluation:
+  cv:
+    group_key: subject_id
+    n_splits: 5
+    scheme: group_kfold
+experiment:
+  name: outcome_t_xgboost
+  results_dir: results/
+  seed: 42
+model:
+  engine: xgboost
+  hyperparameters:
+    l2_regularization: 1.0
+    learning_rate: 0.05
+    max_depth: 3
+    n_estimators: 400
+  ladder:
+  - 158
+  - 198
+  - 237
+  - 316
+  - 396
+  name: outcome_t

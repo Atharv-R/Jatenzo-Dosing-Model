@@ -37,8 +37,9 @@ leaks into its score.
 
 ### Swapping the engine (HistGBM / LightGBM / CatBoost)
 Same model, same recommendation logic and eval — only the underlying regressor changes.
-Set `model.engine` in the config: `histgbm` (default, no install), `lightgbm`, or `catboost`.
-Ready-to-run configs: `configs/outcome_t_lightgbm.yaml`, `configs/outcome_t_catboost.yaml`.
+Set `model.engine` in the config: `histgbm` (default, no install), `lightgbm`, `catboost`,
+or `xgboost`. Ready-to-run configs: `configs/outcome_t_lightgbm.yaml`,
+`configs/outcome_t_catboost.yaml`, `configs/outcome_t_xgboost.yaml`.
 Optional physiology guardrail via `hyperparameters.monotone_constraints`
 (e.g. `{new_dose: 1, current_T: 1}` — higher dose/current T never lowers predicted outcome T).
 
@@ -49,6 +50,15 @@ Synthetic-data comparison (5-fold, patient-grouped) — illustrative until real 
 | histgbm | ~0.63 | ~0.84 |
 | lightgbm | ~0.63 | ~0.84 |
 | catboost | ~0.65 | ~0.86 |
+| xgboost | ~0.62 | ~0.85 |
+
+## Notebooks (for a non-technical audience)
+
+`notebooks/` has three friendly, standalone notebooks — one per engine
+(`01_XGBoost_model.ipynb`, `02_LightGBM_model.ipynb`, `03_CatBoost_model.ipynb`). Each
+walks through load → train → "how good is it" → recommend a dose → guardrails, with plain
+explanations and charts, and comes with outputs already embedded. They read `data/abt.csv`
+if present, otherwise a built-in sample. Open in Jupyter and run top to bottom.
 
 ### 4. Where to see results
 Printed to the console, and saved to `results/<experiment_name>_summary.csv`,

@@ -123,7 +123,7 @@ def make_outcome_regressor(engine: str, hp: dict, features: list[str]):
     Optional monotone_constraints: {feature: -1|0|1}, e.g. {new_dose: 1, current_T: 1}.
     """
     engine = (engine or "histgbm").lower()
-    mono = hp.get("monotone_constraints", {})
+    mono = hp.get("monotone_constraints", {})  # {feature: -1|0|1}; engines: histgbm/lightgbm/catboost/xgboost
     n = hp.get("n_estimators", 400)
     lr = hp.get("learning_rate", 0.05)
     depth = hp.get("max_depth", 3)
@@ -138,6 +138,15 @@ def make_outcome_regressor(engine: str, hp: dict, features: list[str]):
         if mono:
             kw["monotone_constraints"] = [mono.get(f, 0) for f in features]
         return LGBMRegressor(**kw)
+
+    if engine in ("xgboost", "xgb"):
+        from xgboost import XGBRegressor
+        kw = dict(n_estimators=n, learning_rate=lr, max_depth=depth,
+                  reg_lambda=l2, subsample=hp.get("subsample", 1.0),
+                  tree_method="hist", random_state=0, verbosity=0)
+        if mono:
+            kw["monotone_constraints"] = tuple(mono.get(f, 0) for f in features)
+        return XGBRegressor(**kw)
 
     if engine in ("catboost", "cat"):
         from catboost import CatBoostRegressor

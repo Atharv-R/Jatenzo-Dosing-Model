@@ -27,6 +27,45 @@ class Decision:
     flags: list[str] = field(default_factory=list)
 
 
+def directional_dose(proposed_dose: int, current_dose: int,
+                     current_T: float, desired_T: float,
+                     *, tol: float = 25.0, start_dose: int = 237) -> Decision:
+    """Directional guardrails -- force the recommendation's DIRECTION to match the
+    intended change in testosterone. These are the four scenarios:
+
+      Scenario 4 (naive):    no current dose -> standard start dose (237 mg).
+      Scenario 1 (maintain): desired T within +/-tol of current T -> KEEP current dose.
+      Scenario 2 (raise):    desired T above current T -> dose must step UP.
+      Scenario 3 (lower):    desired T below current T -> dose must step DOWN.
+
+    `proposed_dose` is what the ML recommender suggested; this only *corrects its
+    direction*, it does not invent a dose from scratch. `tol` is the maintain deadband.
+    """
+    # Scenario 4: treatment-naive -> standard start.
+    if current_dose == 0 or current_dose not in LADDER:
+        return Decision(start_dose, "Treatment-naive: standard start dose.",
+                        ["naive_start"])
+
+    ci = LADDER.index(current_dose)
+    prop = min(LADDER, key=lambda d: abs(d - proposed_dose))  # snap proposal to ladder
+    pi = LADDER.index(prop)
+    diff = desired_T - current_T
+
+    if abs(diff) <= tol:                                       # Scenario 1: maintain
+        return Decision(current_dose, "Goal is to maintain T: keep current dose.",
+                        ["maintain"])
+    if diff > 0:                                               # Scenario 2: raise
+        ti = max(pi, ci + 1)                                   # must be strictly higher
+        dose = LADDER[min(ti, len(LADDER) - 1)]
+        flags = ["raise"] + (["forced_step_up"] if pi <= ci else [])
+        return Decision(dose, "Goal is higher T: dose stepped up.", flags)
+    # Scenario 3: lower
+    ti = min(pi, ci - 1)                                       # must be strictly lower
+    dose = LADDER[max(ti, 0)]
+    flags = ["lower"] + (["forced_step_down"] if pi >= ci else [])
+    return Decision(dose, "Goal is lower T: dose stepped down.", flags)
+
+
 def _snap(dose: int) -> int:
     if dose == DISCONTINUE:
         return DISCONTINUE
