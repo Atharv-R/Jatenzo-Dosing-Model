@@ -75,4 +75,45 @@
       <td>44.186</td>
     </tr>
   </tbody>
-</table></body></html>
+</table><h2>Dosing behavior (over/under, mis-dose, multi-rung)</h2><p><b>% over/under/exact/mis-dosed</b> compare the recommended dose to the dose actually taken (accuracy). <b>% &gt;1 rung from current</b> is a guideline check (titration should avoid multi-rung jumps) and is a behavioral property of the recommender vs the patient's current dose.</p><table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>n</th>
+      <th>% over</th>
+      <th>% under</th>
+      <th>% exact</th>
+      <th>% mis-dosed</th>
+      <th>% &gt;1 rung from current</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>In-sample (full-data fit)</th>
+      <td>511</td>
+      <td>33.268</td>
+      <td>47.945</td>
+      <td>18.787</td>
+      <td>81.213</td>
+      <td>55.773</td>
+    </tr>
+    <tr>
+      <th>Full sample (CV, out-of-fold)</th>
+      <td>511</td>
+      <td>31.311</td>
+      <td>53.620</td>
+      <td>15.068</td>
+      <td>84.932</td>
+      <td>61.057</td>
+    </tr>
+    <tr>
+      <th>Out-of-sample (held-out patients)</th>
+      <td>89.000</td>
+      <td>28.090</td>
+      <td>50.562</td>
+      <td>21.348</td>
+      <td>78.652</td>
+      <td>59.551</td>
+    </tr>
+  </tbody>
+</table><h2>Behavioral stress test (synthetic input combinations)</h2><p>Valid for behavioral metrics only - these depend on the model's decision function, not on unknown ground truth. Inputs sampled from the real data's ranges.</p><table><tr><th>metric</th><th>value</th></tr><tr><td>combinations</td><td>1,000,000</td></tr><tr><td>% >1 rung from current</td><td>62.24</td></tr><tr><td>% up >1 rung</td><td>22.67</td></tr><tr><td>% down >1 rung</td><td>39.57</td></tr><tr><td>% within 1 rung</td><td>37.76</td></tr></table></body></html>
