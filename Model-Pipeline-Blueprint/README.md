@@ -4,6 +4,32 @@ Modular, config-driven pipeline for testing dosing models. Change the model, its
 hyperparameters, the data cleaning, or the metrics by editing **one YAML file** — the code
 never changes. See `BLUEPRINT-Evaluation-and-Pipeline.md` for the full design rationale.
 
+## Setup
+
+Requires **Python 3.10+, 64-bit** (the notebooks and `xgboost`/`lightgbm`/`catboost`
+wheels do not ship 32-bit builds). Verify your interpreter before installing:
+
+```bash
+python3 -c "import platform, struct; print(platform.python_version(), struct.calcsize('P')*8, platform.machine())"
+# expect e.g. "3.11.6 64 arm64" or "3.11.6 64 x86_64" — if it prints "32", you have
+# a 32-bit Python install and must switch to a 64-bit one (see below)
+```
+
+Use a virtual environment so the project's dependencies don't collide with anything else
+on your machine:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+If VS Code / Jupyter is picking the wrong interpreter (e.g. a stray 32-bit or system
+Python instead of `.venv`), select it explicitly: Command Palette →
+**Python: Select Interpreter** → choose `.venv`, then re-select the kernel at the
+top-right of the notebook.
+
 ## Primary model: outcome-T (predict final T, then pick the closest dose)
 
 This is the lead approach. The model predicts **outcome (final) T** from

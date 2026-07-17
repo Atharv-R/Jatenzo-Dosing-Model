@@ -1,0 +1,4 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/Model-Pipeline-Blueprint/.venv/bin/python",
+  "python.terminal.activateEnvironment": true
+}
