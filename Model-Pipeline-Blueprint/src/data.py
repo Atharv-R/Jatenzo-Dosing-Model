@@ -74,21 +74,62 @@ def synthetic_abt(n_patients: int = 300, visits: int = 4, seed: int = 42) -> pd.
     return pd.DataFrame(rows)
 
 
-# ------------------------------------------------------------------- cleaned ML sheet
-# Column mapping from the colleague's 'DatasetML' sheet to the ABT.
-ML_COLMAP = {
-    "SUBJECT": "subject_id", "AGE": "age", "BMI": "bmi", "CURRENT_T": "current_T",
-    "CURRENT_DOSE": "current_dose", "NEW_DOSE": "new_dose", "OUTCOME_T": "outcome_T",
-    "DELTA_T": "delta_t", "DELTA_T_WIN": "delta_t_win", "INTERVAL_DAYS": "interval_days",
-    "IS_SWITCH": "is_switch", "PAIR": "pair",
+# ------------------------------------------------------------------- column normalization
+# Map the many possible source names (the colleague's sheet has evolved) to canonical ABT
+# names. Handles CURRENT_DOSE_JAT/NEW_DOSE_JAT and the older CURRENT_DOSE/NEW_DOSE.
+ALIASES = {
+    "subject_id": ["subject_id", "SUBJECT", "SUBJID", "subject"],
+    "age": ["age", "AGE"],
+    "bmi": ["bmi", "BMI"],
+    "current_dose": ["current_dose", "CURRENT_DOSE_JAT", "CURRENT_DOSE"],
+    "new_dose": ["new_dose", "NEW_DOSE_JAT", "NEW_DOSE"],
+    "current_T": ["current_T", "CURRENT_T"],
+    "outcome_T": ["outcome_T", "OUTCOME_T"],
+    "delta_t": ["delta_t", "DELTA_T"],
+    "delta_t_win": ["delta_t_win", "DELTA_T_WIN"],
+    "interval_days": ["interval_days", "INTERVAL_DAYS"],
+    "is_switch": ["is_switch", "IS_SWITCH"],
+    "pair": ["pair", "PAIR"],
 }
 
 
+def _num(x):
+    """Parse a number, treating accounting-style '(1429)' as -1429 and ',' as thousands."""
+    if pd.isna(x):
+        return np.nan
+    if isinstance(x, str):
+        s = x.strip().replace(",", "")
+        if s in ("", "-", "NA", "nan", "None"):
+            return np.nan
+        neg = s.startswith("(") and s.endswith(")")
+        if neg:
+            s = s[1:-1]
+        try:
+            v = float(s)
+        except ValueError:
+            return np.nan
+        return -v if neg else v
+    return float(x)
+
+
+def _normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
+    ren = {}
+    for canon, aliases in ALIASES.items():
+        for a in aliases:
+            if a in df.columns and canon not in df.columns:
+                ren[a] = canon
+                break
+    df = df.rename(columns=ren)
+    for c in ["delta_t", "delta_t_win", "current_T", "outcome_T",
+              "current_dose", "new_dose", "bmi"]:
+        if c in df.columns and df[c].dtype == object:
+            df[c] = df[c].map(_num)
+    return df
+
+
 def build_abt_from_ml_sheet(path: str, sheet: str = "DatasetML") -> pd.DataFrame:
-    """Load the cleaned 'DatasetML' sheet and rename to ABT columns."""
-    df = pd.read_excel(path, sheet_name=sheet).rename(columns=ML_COLMAP)
-    keep = [c for c in ML_COLMAP.values() if c in df.columns]
-    return df[keep].dropna(subset=REQUIRED)
+    """Load the cleaned 'DatasetML' sheet and normalize to ABT columns."""
+    return _normalize_columns(pd.read_excel(path, sheet_name=sheet))
 
 
 # --------------------------------------------------------------------------- dispatch
@@ -103,6 +144,7 @@ def build_abt(cfg: dict) -> pd.DataFrame:
     else:
         df = synthetic_abt(seed=cfg.get("seed", 42))
 
+    df = _normalize_columns(df)                      # robust to source column naming
     if "subject_id" not in df and "patient_id" in df:
         df["subject_id"] = df["patient_id"]
     missing = [c for c in REQUIRED if c not in df.columns]

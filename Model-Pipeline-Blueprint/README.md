@@ -69,22 +69,29 @@ or `xgboost`. Ready-to-run configs: `configs/outcome_t_lightgbm.yaml`,
 Optional physiology guardrail via `hyperparameters.monotone_constraints`
 (e.g. `{new_dose: 1, current_T: 1}` — higher dose/current T never lowers predicted outcome T).
 
-Real-data comparison — `DatasetML`, 953 rows / 293 patients, 5-fold patient-grouped.
-Report the **dose-CHANGE (switch) rows** — the informative decisions; the 806 stable-dose
-rows make an aggregate "keep the dose" baseline look strong (~0.85) but are trivial.
+### Metrics report (team format)
 
-| engine | outcome-T R² | within-1-step (switch rows) |
-|---|---|---|
-| catboost | ~0.08 | ~0.61 |
-| histgbm | ~-0.03 | ~0.46 |
-| lightgbm | ~-0.04 | ~0.44 |
-| xgboost | ~-0.06 | ~0.43 |
+`python src/report.py --config <cfg>` prints and saves (to `results/`) two tables:
+**Statistical accuracy** (`n`, R²-final-T, **R²-delta-T**, RMSE, MAE, MSE, %-within-150)
+across in-sample / CV-out-of-fold / held-out-patients, and **Dose-recommendation accuracy**
+(exact %, within-1-step %, plus a "clean subset" = rows whose actual dose is a marketed rung).
 
-These are honest and modest: five features (age, BMI, current T, dose) only weakly predict
-the 4-hour outcome T, consistent with oral-TU's high food/SHBG-driven variability. Levers to
-improve: add **SHBG** (in the workbook), use the winsorized target (`delta_t_win`), and add
-`is_switch`. **Note:** trial doses are 25–300, not the commercial ladder (158/198/237/316/396);
-the recommender uses the data's doses, and mapping to the commercial ladder is a downstream step.
+**R² (delta T) is the honest headline** — raw final-T variance is dominated by
+regression-to-the-mean noise, so R²(final T) understates skill. Real-data comparison
+(`abt.csv`, 511 rows / ~300 patients):
+
+| engine | R²-delta in-sample | R²-delta CV | R²-delta held-out |
+|---|---|---|---|
+| xgboost | ~0.86 | ~0.48 | ~0.65 |
+| catboost | ~0.77 | ~0.53 | ~0.67 |
+| lightgbm | ~0.77 | ~0.52 | ~0.66 |
+| histgbm | ~0.76 | ~0.52 | ~0.67 |
+
+These match the team's own numbers (~0.74 / 0.63 / 0.70). Notes: features are
+`age, bmi, current_T, new_dose` (**current dose dropped** — not important); target is
+`outcome_T` by default or `delta_T` (`model.target`, near-identical results); doses are the
+marketed ladder 158–474; the delta columns' accounting negatives `(1429)` are parsed
+automatically.
 
 ## Notebooks (for a non-technical audience)
 

@@ -21,7 +21,7 @@ evaluation:
     n_splits: 5
     scheme: group_kfold
 experiment:
-  name: outcome_t_catboost
+  name: outcome_t_catboost_deltaT
   results_dir: results/
   seed: 42
 model:
@@ -37,4 +37,4 @@ model:
   - bmi
   - current_T
   - new_dose
-  target: outcome_T
+  target: delta_T

@@ -27,6 +27,12 @@ model:
     learning_rate: 0.05
     max_depth: 3
     l2_regularization: 1.0
+  features:
+  - age
+  - bmi
+  - current_T
+  - new_dose
+  target: outcome_T
 evaluation:
   cv:
     scheme: group_kfold

@@ -30,23 +30,34 @@ class Decision:
 def directional_dose(proposed_dose: int, current_dose: int,
                      current_T: float, desired_T: float,
                      *, tol: float = 25.0, start_dose: int = 237,
-                     ladder: list | None = None) -> Decision:
+                     ladder: list | None = None,
+                     naive_policy: str = "model") -> Decision:
     """Directional guardrails -- force the recommendation's DIRECTION to match the
     intended change in testosterone. These are the four scenarios:
 
-      Scenario 4 (naive):    no current dose -> standard start dose (237 mg).
+      Scenario 4 (naive):    no current dose -> see naive_policy below.
       Scenario 1 (maintain): desired T within +/-tol of current T -> KEEP current dose.
-      Scenario 2 (raise):    desired T above current T -> dose must step UP.
+      Scenario 2 (raise):    desired T above current T -> dose must step UP (magnitude
+                             from the model -- a big jump toward the goal is allowed).
       Scenario 3 (lower):    desired T below current T -> dose must step DOWN.
 
     `proposed_dose` is what the ML recommender suggested; this only *corrects its
-    direction*, it does not invent a dose from scratch. `tol` is the maintain deadband.
+    direction*, it does not cap how far the model jumps toward the goal.
+
+    naive_policy for a treatment-naive patient:
+      "model"          -> trust the model's dose (snapped to a rung). Best when the goal
+                          is a large T increase -- a fixed low start would be wrong.
+      "standard_start" -> the label's conservative fixed start (then titrate).
     """
     rungs = ladder if ladder is not None else LADDER
-    # Scenario 4: treatment-naive -> standard start.
+    # Scenario 4: treatment-naive.
     if current_dose == 0 or current_dose not in rungs:
-        return Decision(start_dose, "Treatment-naive: standard start dose.",
-                        ["naive_start"])
+        if naive_policy == "standard_start":
+            return Decision(start_dose, "Treatment-naive: label's standard start dose.",
+                            ["naive_standard_start"])
+        prop = min(rungs, key=lambda d: abs(d - proposed_dose))
+        return Decision(prop, "Treatment-naive: model-recommended starting dose "
+                              "(chosen to reach the target T).", ["naive_model"])
 
     ci = rungs.index(current_dose)
     prop = min(rungs, key=lambda d: abs(d - proposed_dose))    # snap proposal to ladder

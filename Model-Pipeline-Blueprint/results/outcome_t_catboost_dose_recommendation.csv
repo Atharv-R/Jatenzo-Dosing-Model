@@ -1,0 +1,3 @@
+,n,Exact %,Within 1 step %,n (clean),Exact % (clean),Within 1 step % (clean)
+"In-sample (production model, full data)",511.0,18.786692759295498,45.98825831702544,498.0,17.46987951807229,45.38152610441767
+Out-of-sample (held-out patients),89.0,21.34831460674157,44.9438202247191,86.0,19.767441860465116,44.18604651162791

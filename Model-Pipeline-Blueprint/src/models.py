@@ -174,38 +174,50 @@ class OutcomeTModel:
       features = [age, bmi, current_T, current_dose, new_dose]  ->  target = outcome_T
     Recommendation sweeps all five ladder doses and picks the closest-to-desired outcome.
 
-    Engine is swappable via config `model.engine`: histgbm (default) | lightgbm | catboost.
+    Engine is swappable via config `model.engine`: histgbm (default) | lightgbm | catboost | xgboost.
+    Features via `model.features` (default drops current_dose). Target via `model.target`:
+    'outcome_T' (predict final T) or 'delta_T' (predict the CHANGE, then add current_T back).
     """
-    FEATURES = ["age", "bmi", "current_T", "current_dose", "new_dose"]
+    DEFAULT_FEATURES = ["age", "bmi", "current_T", "new_dose"]
 
     def __init__(self, cfg):
         hp = cfg.get("hyperparameters", {})
         self.engine = cfg.get("engine", "histgbm")
-        # Candidate doses the recommender sweeps. If not given in config, they are learned
-        # from the training data (important: the trial uses 25-300, not the commercial ladder).
+        self.features = list(cfg.get("features", self.DEFAULT_FEATURES))
+        if "new_dose" not in self.features:            # required: it's the dose we vary
+            self.features.append("new_dose")
+        self.target = cfg.get("target", "outcome_T")   # outcome_T | delta_T
+        # Candidate doses the recommender sweeps; learned from data if not given.
         self.ladder = cfg.get("ladder")
         # Small tabular data -> many shallow trees + low learning rate generalize best.
-        self.m = make_outcome_regressor(self.engine, hp, self.FEATURES)
+        self.m = make_outcome_regressor(self.engine, hp, self.features)
 
     def fit(self, X, y):
         if self.ladder is None:
             self.ladder = sorted(X["new_dose"].unique().tolist())
-        self.m.fit(X[self.FEATURES].values, y)          # y = outcome_T (ng/dL)
+        y = np.asarray(y, dtype=float)
+        y_train = (y - X["current_T"].values) if self.target == "delta_T" else y
+        self.m.fit(X[self.features].values, y_train)
         return self
 
+    def _predict_outcome(self, Xf, current_T):
+        base = self.m.predict(Xf)
+        return current_T + base if self.target == "delta_T" else base
+
     def predict(self, X):
-        """Predicted outcome T for the given (state, new_dose) rows."""
-        return self.m.predict(X[self.FEATURES].values)
+        """Predicted final (outcome) T for the given (state, new_dose) rows."""
+        return self._predict_outcome(X[self.features].values, X["current_T"].values)
 
     def recommend(self, X, desired_T):
         """For each patient row, sweep the candidate doses and return the one whose
         predicted outcome T is closest to desired_T. Vectorized over rows."""
         desired = np.asarray(desired_T, dtype=float).reshape(-1, 1)
-        base = X[self.FEATURES].copy()
+        cT = X["current_T"].values
+        base = X[self.features].copy()
         preds = np.zeros((len(X), len(self.ladder)))
         for j, d in enumerate(self.ladder):
             b = base.copy(); b["new_dose"] = d
-            preds[:, j] = self.m.predict(b.values)
+            preds[:, j] = self._predict_outcome(b.values, cT)
         best = np.argmin(np.abs(preds - desired), axis=1)
         return np.array([self.ladder[i] for i in best])
 

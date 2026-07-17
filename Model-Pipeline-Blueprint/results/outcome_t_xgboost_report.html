@@ -1,0 +1,78 @@
+<html><head><style>body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;margin:24px;color:#222}h2{margin-top:28px}table{border-collapse:collapse;width:100%;margin-top:10px}th,td{border:1px solid #ddd;padding:8px 12px;text-align:right}th:first-child,td:first-child{text-align:left}th{background:#f5f6f8}p{color:#555;max-width:900px}</style></head><body><h1>Jatenzo dose model - metrics (xgboost, target=outcome_T)</h1><h2>Statistical accuracy</h2><p>R2 (final T) is against actual OUTCOME_T. Raw T variance is dominated by regression-to-the-mean noise, so it can look weak even with real skill. <b>R2 (delta T)</b> scores predicting the change and is the more honest read. RMSE/MAE/MSE/%-within are identical either way (current_T cancels).</p><table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>n</th>
+      <th>R2 (final T)</th>
+      <th>R2 (delta T)</th>
+      <th>RMSE</th>
+      <th>MAE</th>
+      <th>MSE</th>
+      <th>% within 150</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>In-sample (full-data fit)</th>
+      <td>511</td>
+      <td>0.656</td>
+      <td>0.855</td>
+      <td>195</td>
+      <td>151</td>
+      <td>37989</td>
+      <td>57.534</td>
+    </tr>
+    <tr>
+      <th>Out-of-sample (CV, out-of-fold)</th>
+      <td>422</td>
+      <td>-0.090</td>
+      <td>0.477</td>
+      <td>346</td>
+      <td>270</td>
+      <td>119650</td>
+      <td>34.597</td>
+    </tr>
+    <tr>
+      <th>Out-of-sample (held-out patients)</th>
+      <td>89.000</td>
+      <td>-0.269</td>
+      <td>0.655</td>
+      <td>380</td>
+      <td>295</td>
+      <td>144383</td>
+      <td>33.708</td>
+    </tr>
+  </tbody>
+</table><h2>Dose-recommendation accuracy (inverse recommendation test)</h2><p>For each row we know the dose given and the T achieved. Setting desired_T to the achieved T and asking the recommender for a dose: does it match reality? 'Clean subset' restricts to rows whose actual next dose is a real marketed rung.</p><table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>n</th>
+      <th>Exact %</th>
+      <th>Within 1 step %</th>
+      <th>n (clean)</th>
+      <th>Exact % (clean)</th>
+      <th>Within 1 step % (clean)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>In-sample (production model, full data)</th>
+      <td>511</td>
+      <td>26.223</td>
+      <td>53.229</td>
+      <td>498</td>
+      <td>25.904</td>
+      <td>52.610</td>
+    </tr>
+    <tr>
+      <th>Out-of-sample (held-out patients)</th>
+      <td>89.000</td>
+      <td>24.719</td>
+      <td>51.685</td>
+      <td>86.000</td>
+      <td>25.581</td>
+      <td>52.326</td>
+    </tr>
+  </tbody>
+</table></body></html>
