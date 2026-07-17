@@ -14,7 +14,7 @@ data:
     lower_pct: 2
     policy: winsorize
     upper_pct: 98
-  source: synthetic
+  source: file
 evaluation:
   cv:
     group_key: subject_id
@@ -31,10 +31,4 @@ model:
     learning_rate: 0.05
     max_depth: 3
     n_estimators: 400
-  ladder:
-  - 158
-  - 198
-  - 237
-  - 316
-  - 396
   name: outcome_t

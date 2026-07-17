@@ -26,12 +26,6 @@ model:
     learning_rate: 0.05
     max_depth: 3
     l2_regularization: 1.0
-  ladder:
-  - 158
-  - 198
-  - 237
-  - 316
-  - 396
 evaluation:
   cv:
     scheme: group_kfold

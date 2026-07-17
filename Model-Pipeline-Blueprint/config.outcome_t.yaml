@@ -1,38 +1,34 @@
-# OUTCOME-T MODEL -- predict final T from state + candidate dose, recommend closest to desired T.
-# Run:  python src/run.py --config config.outcome_t.yaml
-
 experiment:
-  name: "outcome_t_gbm_v1"
+  name: outcome_t_gbm_v1
   seed: 42
-  results_dir: "results/"
-
+  results_dir: results/
 data:
-  source: "synthetic"                 # synthetic (runnable now) | file | trial
-  abt_path: "data/abt.csv"            # <-- when source: file, drop the cleaned CSV HERE
-  features: [age, bmi, current_T, current_dose, new_dose]   # target is outcome_T
+  source: file
+  abt_path: data/abt.csv
+  features:
+  - age
+  - bmi
+  - current_T
+  - current_dose
+  - new_dose
   outliers:
-    policy: "winsorize"               # none | winsorize | drop | drop_data_errors_only
+    policy: winsorize
     lower_pct: 2
     upper_pct: 98
-    apply_to: [bmi, current_T, outcome_T]
-
+    apply_to:
+    - bmi
+    - current_T
+    - outcome_T
 model:
-  name: "outcome_t"                   # the colleague's design
-  engine: "histgbm"                   # histgbm (default) | lightgbm | catboost
-  hyperparameters:                    # small data -> shallow trees, many of them, low LR
+  name: outcome_t
+  engine: histgbm
+  hyperparameters:
     n_estimators: 400
     learning_rate: 0.05
     max_depth: 3
     l2_regularization: 1.0
-    # optional physiology constraint: higher dose / higher current T never lowers outcome T
-    # monotone_constraints: {new_dose: 1, current_T: 1}
-  ladder: [158, 198, 237, 316, 396]
-
 evaluation:
   cv:
-    scheme: "group_kfold"
+    scheme: group_kfold
     n_splits: 5
-    group_key: "subject_id"           # MUST group by subject (repeated IDs)
-  # Metrics are fixed by the outcome-T evaluator (two honest tests):
-  #   TEST 1 outcome-T prediction: rmse, mae, r2, within_100ngdl
-  #   TEST 2 inverse recommendation: exact, within_one_step (+ keep-dose baseline)
+    group_key: subject_id

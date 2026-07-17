@@ -105,7 +105,9 @@ def run_outcome_eval(model_factory, df, cfg):
     groups = df[group_col] if group_col in df.columns else df["subject_id"]
     gkf = GroupKFold(n_splits=cfg.get("n_splits", 5))
     y = df["outcome_T"]
-    idx = {d: i for i, d in enumerate(LADDER)}
+    # Dose set is data-driven (trial doses differ from the commercial ladder).
+    doses = sorted(df["new_dose"].unique().tolist())
+    idx = {d: i for i, d in enumerate(doses)}
     rows = []
     for k, (tr, te) in enumerate(gkf.split(df, y, groups)):
         model = model_factory().fit(df.iloc[tr], y.iloc[tr])
@@ -118,9 +120,17 @@ def run_outcome_eval(model_factory, df, cfg):
 
         rec = model.recommend(te_df, yt)                 # desired_T = achieved T
         taken = te_df["new_dose"].values
-        w1 = np.mean([(a in idx and b in idx and abs(idx[a] - idx[b]) <= 1)
-                      for a, b in zip(rec, taken)])
-        keep = te_df["current_dose"].values              # naive baseline
+        keep = te_df["current_dose"].values              # naive 'keep current dose' baseline
+
+        def within1(mask):
+            a, b = rec[mask], taken[mask]
+            if len(a) == 0:
+                return float("nan")
+            return float(np.mean([abs(idx[x] - idx[y]) <= 1 for x, y in zip(a, b)]))
+
+        # Most rows are stable-dose (new==current), where 'keep dose' is trivially right.
+        # The dose-CHANGE rows are the informative ones -> report them separately.
+        is_switch = (te_df["is_switch"].values == 1) if "is_switch" in te_df else (taken != keep)
 
         rows.append({
             "fold": k,
@@ -128,8 +138,9 @@ def run_outcome_eval(model_factory, df, cfg):
             "outcomeT_mae": float(np.mean(np.abs(yt - pred))),
             "outcomeT_r2": float(1 - ss_res / ss_tot) if ss_tot else 0.0,
             "outcomeT_within_100ngdl": float(np.mean(np.abs(yt - pred) <= 100)),
-            "inverse_exact_dose": float(np.mean(rec == taken)),
-            "inverse_within_one_step": float(w1),
+            "inverse_within_1_overall": within1(np.ones(len(rec), bool)),
+            "inverse_within_1_SWITCH": within1(is_switch),      # the decisions that matter
+            "inverse_within_1_stable": within1(~is_switch),
             "baseline_keepdose_exact": float(np.mean(keep == taken)),
         })
     folds = pd.DataFrame(rows)

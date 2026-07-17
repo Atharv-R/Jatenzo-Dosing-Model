@@ -74,11 +74,30 @@ def synthetic_abt(n_patients: int = 300, visits: int = 4, seed: int = 42) -> pd.
     return pd.DataFrame(rows)
 
 
+# ------------------------------------------------------------------- cleaned ML sheet
+# Column mapping from the colleague's 'DatasetML' sheet to the ABT.
+ML_COLMAP = {
+    "SUBJECT": "subject_id", "AGE": "age", "BMI": "bmi", "CURRENT_T": "current_T",
+    "CURRENT_DOSE": "current_dose", "NEW_DOSE": "new_dose", "OUTCOME_T": "outcome_T",
+    "DELTA_T": "delta_t", "DELTA_T_WIN": "delta_t_win", "INTERVAL_DAYS": "interval_days",
+    "IS_SWITCH": "is_switch", "PAIR": "pair",
+}
+
+
+def build_abt_from_ml_sheet(path: str, sheet: str = "DatasetML") -> pd.DataFrame:
+    """Load the cleaned 'DatasetML' sheet and rename to ABT columns."""
+    df = pd.read_excel(path, sheet_name=sheet).rename(columns=ML_COLMAP)
+    keep = [c for c in ML_COLMAP.values() if c in df.columns]
+    return df[keep].dropna(subset=REQUIRED)
+
+
 # --------------------------------------------------------------------------- dispatch
 def build_abt(cfg: dict) -> pd.DataFrame:
     source = cfg.get("source", "synthetic")
     if source == "file":
         df = pd.read_csv(cfg["abt_path"])
+    elif source == "excel":
+        df = build_abt_from_ml_sheet(cfg["abt_path"], cfg.get("sheet", "DatasetML"))
     elif source == "trial":
         df = build_abt_from_trial(cfg["raw_sources"])
     else:

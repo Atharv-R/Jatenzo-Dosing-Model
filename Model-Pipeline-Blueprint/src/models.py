@@ -181,10 +181,15 @@ class OutcomeTModel:
     def __init__(self, cfg):
         hp = cfg.get("hyperparameters", {})
         self.engine = cfg.get("engine", "histgbm")
+        # Candidate doses the recommender sweeps. If not given in config, they are learned
+        # from the training data (important: the trial uses 25-300, not the commercial ladder).
+        self.ladder = cfg.get("ladder")
         # Small tabular data -> many shallow trees + low learning rate generalize best.
         self.m = make_outcome_regressor(self.engine, hp, self.FEATURES)
 
     def fit(self, X, y):
+        if self.ladder is None:
+            self.ladder = sorted(X["new_dose"].unique().tolist())
         self.m.fit(X[self.FEATURES].values, y)          # y = outcome_T (ng/dL)
         return self
 
@@ -193,16 +198,16 @@ class OutcomeTModel:
         return self.m.predict(X[self.FEATURES].values)
 
     def recommend(self, X, desired_T):
-        """For each patient row, sweep the 5 doses and return the one whose predicted
-        outcome T is closest to desired_T. Vectorized over rows."""
+        """For each patient row, sweep the candidate doses and return the one whose
+        predicted outcome T is closest to desired_T. Vectorized over rows."""
         desired = np.asarray(desired_T, dtype=float).reshape(-1, 1)
         base = X[self.FEATURES].copy()
-        preds = np.zeros((len(X), len(LADDER)))
-        for j, d in enumerate(LADDER):
+        preds = np.zeros((len(X), len(self.ladder)))
+        for j, d in enumerate(self.ladder):
             b = base.copy(); b["new_dose"] = d
             preds[:, j] = self.m.predict(b.values)
         best = np.argmin(np.abs(preds - desired), axis=1)
-        return np.array([LADDER[i] for i in best])
+        return np.array([self.ladder[i] for i in best])
 
 
 @register("serumT_then_rule")

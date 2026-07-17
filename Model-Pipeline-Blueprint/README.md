@@ -69,14 +69,22 @@ or `xgboost`. Ready-to-run configs: `configs/outcome_t_lightgbm.yaml`,
 Optional physiology guardrail via `hyperparameters.monotone_constraints`
 (e.g. `{new_dose: 1, current_T: 1}` — higher dose/current T never lowers predicted outcome T).
 
-Synthetic-data comparison (5-fold, patient-grouped) — illustrative until real data lands:
+Real-data comparison — `DatasetML`, 953 rows / 293 patients, 5-fold patient-grouped.
+Report the **dose-CHANGE (switch) rows** — the informative decisions; the 806 stable-dose
+rows make an aggregate "keep the dose" baseline look strong (~0.85) but are trivial.
 
-| engine | outcome-T R² | inverse within-1-step |
+| engine | outcome-T R² | within-1-step (switch rows) |
 |---|---|---|
-| histgbm | ~0.63 | ~0.84 |
-| lightgbm | ~0.63 | ~0.84 |
-| catboost | ~0.65 | ~0.86 |
-| xgboost | ~0.62 | ~0.85 |
+| catboost | ~0.08 | ~0.61 |
+| histgbm | ~-0.03 | ~0.46 |
+| lightgbm | ~-0.04 | ~0.44 |
+| xgboost | ~-0.06 | ~0.43 |
+
+These are honest and modest: five features (age, BMI, current T, dose) only weakly predict
+the 4-hour outcome T, consistent with oral-TU's high food/SHBG-driven variability. Levers to
+improve: add **SHBG** (in the workbook), use the winsorized target (`delta_t_win`), and add
+`is_switch`. **Note:** trial doses are 25–300, not the commercial ladder (158/198/237/316/396);
+the recommender uses the data's doses, and mapping to the commercial ladder is a downstream step.
 
 ## Notebooks (for a non-technical audience)
 
